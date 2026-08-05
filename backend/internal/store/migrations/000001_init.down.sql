@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS message_sources;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS threads;
+DROP TABLE IF EXISTS users;
