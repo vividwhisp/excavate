@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
 
+	"excavate/internal/auth"
 	"excavate/internal/cache"
 	"excavate/internal/config"
 	"excavate/internal/store"
@@ -22,20 +22,25 @@ type Server struct {
 	store   *store.Store
 	cache   *cache.Cache
 	rdb     *redis.Client
-	handler http.Handler
-
-	// Populated in later milestones.
+	auth    *auth.Service
+	users   *store.UserRepo
 	sessions *cache.SessionStore
+	handler http.Handler
 }
 
 func NewServer(cfg config.Config, logger *slog.Logger, st *store.Store, c *cache.Cache) *Server {
+	sessions := cache.NewSessionStore(c.Client(), cfg.Session.TTL)
+	users := store.NewUserRepo(st.Pool)
+
 	s := &Server{
-		cfg:     cfg,
-		logger:  logger,
-		store:   st,
-		cache:   c,
-		rdb:     c.Client(),
-		sessions: cache.NewSessionStore(c.Client(), cfg.Session.TTL),
+		cfg:      cfg,
+		logger:   logger,
+		store:    st,
+		cache:    c,
+		rdb:      c.Client(),
+		auth:     auth.NewService(users, sessions),
+		users:    users,
+		sessions: sessions,
 	}
 	s.handler = s.buildRouter()
 	return s
@@ -45,18 +50,30 @@ func (s *Server) Handler() http.Handler { return s.handler }
 
 func (s *Server) buildRouter() http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID)          // chi's request id
 	r.Use(RequestID)                     // our own, sets header
 	r.Use(Logger(s.logger))
 	r.Use(Recover(s.logger))
 	r.Use(s.cors())
 
 	r.Route("/api", func(r chi.Router) {
-		// Milestone 1: liveness/readiness.
+		// Liveness/readiness.
 		r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 			WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		})
 		r.Get("/readyz", s.readyz)
+
+		// Auth (public).
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", s.handleRegister)
+			r.Post("/login", s.handleLogin)
+		})
+
+		// Authenticated routes.
+		r.Group(func(r chi.Router) {
+			r.Use(s.RequireAuth)
+			r.Post("/auth/logout", s.handleLogout)
+			r.Get("/me", s.handleMe)
+		})
 	})
 
 	return r
