@@ -47,7 +47,7 @@ func Load() Config {
 		BaseURL:  getEnv("BASE_URL", "http://localhost:8080"),
 		Database: getEnv("DATABASE_URL", "postgres://excavate:excavate@localhost:5432/excavate?sslmode=disable"),
 		Redis: RedisConfig{
-			Addr:     getEnv("REDIS_ADDR", "localhost:6379"),
+			Addr:     getEnv("REDIS_ADDR", "127.0.0.1:6379"),
 			Password: getEnv("REDIS_PASSWORD", ""),
 			DB:       getEnvInt("REDIS_DB", 0),
 		},

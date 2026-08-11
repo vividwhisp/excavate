@@ -12,25 +12,45 @@ import (
 	"excavate/internal/auth"
 	"excavate/internal/cache"
 	"excavate/internal/config"
+	"excavate/internal/extract"
+	"excavate/internal/llm"
+	"excavate/internal/research"
+	"excavate/internal/search"
 	"excavate/internal/store"
 )
 
 // Server wires all HTTP dependencies and builds the route tree.
 type Server struct {
-	cfg     config.Config
-	logger  *slog.Logger
-	store   *store.Store
-	cache   *cache.Cache
-	rdb     *redis.Client
-	auth    *auth.Service
-	users   *store.UserRepo
+	cfg      config.Config
+	logger   *slog.Logger
+	store    *store.Store
+	cache    *cache.Cache
+	rdb      *redis.Client
+	auth     *auth.Service
+	users    *store.UserRepo
+	threads  *store.ThreadRepo
+	messages *store.MessageRepo
 	sessions *cache.SessionStore
-	handler http.Handler
+	pipeline *research.Pipeline
+	handler  http.Handler
 }
 
 func NewServer(cfg config.Config, logger *slog.Logger, st *store.Store, c *cache.Cache) *Server {
 	sessions := cache.NewSessionStore(c.Client(), cfg.Session.TTL)
 	users := store.NewUserRepo(st.Pool)
+	threads := store.NewThreadRepo(st.Pool)
+	messages := store.NewMessageRepo(st.Pool)
+
+	pipeline := research.NewPipeline(
+		search.NewMock(),
+		extract.NewMock(),
+		llm.NewMock(),
+		messages,
+		threads,
+		c.Client(),
+		cfg.App,
+		logger,
+	)
 
 	s := &Server{
 		cfg:      cfg,
@@ -40,10 +60,18 @@ func NewServer(cfg config.Config, logger *slog.Logger, st *store.Store, c *cache
 		rdb:      c.Client(),
 		auth:     auth.NewService(users, sessions),
 		users:    users,
+		threads:  threads,
+		messages: messages,
 		sessions: sessions,
+		pipeline: pipeline,
 	}
 	s.handler = s.buildRouter()
 	return s
+}
+
+// StartWorkers launches the research pipeline workers in the background.
+func (s *Server) StartWorkers(ctx context.Context) {
+	s.pipeline.Worker(ctx, 1)
 }
 
 func (s *Server) Handler() http.Handler { return s.handler }
@@ -73,6 +101,13 @@ func (s *Server) buildRouter() http.Handler {
 			r.Use(s.RequireAuth)
 			r.Post("/auth/logout", s.handleLogout)
 			r.Get("/me", s.handleMe)
+
+			r.Get("/threads", s.handleListThreads)
+			r.Post("/threads", s.handleCreateThread)
+			r.Get("/threads/{id}", s.handleGetThread)
+
+			r.Post("/messages", s.handlePostMessage)
+			r.Get("/research/stream", s.handleStream)
 		})
 	})
 

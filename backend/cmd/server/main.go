@@ -50,9 +50,12 @@ func main() {
 	}
 	defer c.Close()
 
+	server := httpserver.NewServer(cfg, logger, st, c)
+	server.StartWorkers(ctx)
+
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpserver.NewServer(cfg, logger, st, c).Handler(),
+		Handler:           server.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

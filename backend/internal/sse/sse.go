@@ -49,11 +49,31 @@ func WritePreamble(w http.ResponseWriter) {
 	}
 }
 
+// WriteEvent writes a single SSE frame and flushes.
+func WriteEvent(w http.ResponseWriter, ev Event) error {
+	b, err := json.Marshal(ev)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "event: message\ndata: %s\n\n", b)
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
+	return nil
+}
+
 // Forward pumps events from a Redis pub/sub channel to the HTTP response
-// until ctx is done or the client disconnects.
+// until ctx is done, the client disconnects, or a terminal (done/error) event
+// is received.
 func Forward(ctx context.Context, w http.ResponseWriter, r *http.Request, rdb *redis.Client, channel string) error {
 	sub := rdb.Subscribe(ctx, channel)
 	defer sub.Close()
+
+	// Wait for the SUBSCRIBE to be acknowledged so we don't miss the early
+	// events that arrive milliseconds after the client connects.
+	if err := sub.Ping(ctx); err != nil {
+		return fmt.Errorf("subscribe %s: %w", channel, err)
+	}
 
 	ch := sub.Channel()
 	keepAlive := time.NewTicker(20 * time.Second)
@@ -78,7 +98,14 @@ func Forward(ctx context.Context, w http.ResponseWriter, r *http.Request, rdb *r
 			if !ok {
 				return nil
 			}
-			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", "message", msg.Payload)
+			// msg.Payload is already the serialized Event JSON from Publish.
+			var ev Event
+			if err := json.Unmarshal([]byte(msg.Payload), &ev); err == nil {
+				if ev.Type == EventDone || ev.Type == EventError {
+					return WriteEvent(w, ev)
+				}
+			}
+			fmt.Fprintf(w, "event: message\ndata: %s\n\n", msg.Payload)
 			flusher.Flush()
 		}
 	}

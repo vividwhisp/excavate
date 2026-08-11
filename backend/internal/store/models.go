@@ -25,6 +25,7 @@ type Message struct {
 	Status    string    `json:"status"`
 	Error     string    `json:"error,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
+	Sources   []Source  `json:"sources,omitempty"`
 }
 
 type Source struct {
