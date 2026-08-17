@@ -120,7 +120,7 @@ else {
         # Poll until the message reaches a terminal state (up to 20s).
         $term = "pending"
         for ($i = 0; $i -lt 40; $i++) {
-            Start-Sleep 500
+            Start-Sleep -Milliseconds 500
             $m = GetPath "/api/threads/$threadId"
             if ($m.code -eq "200") {
                 $last = ($m.body | ConvertFrom-Json).messages | Where-Object { $_.id -eq $messageId }
