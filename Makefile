@@ -1,4 +1,4 @@
-.PHONY: up down ps logs migrate-backend build-backend test vet fmt lint clean test-auth test-research
+.PHONY: up down ps logs migrate-backend build-backend test vet fmt lint clean test-auth test-research test-real
 
 # Spin up Postgres + Redis (data stores for local dev / backend runs via `go run`)
 up:
@@ -36,6 +36,10 @@ test-auth:
 # End-to-end research pipeline flow (auto-starts deps + backend)
 test-research:
 	powershell -ExecutionPolicy Bypass -File scripts/test-research.ps1
+
+# End-to-end research with REAL providers (Tavily + Gemini; reads backend/.env)
+test-real:
+	powershell -ExecutionPolicy Bypass -File scripts/test-real.ps1
 
 vet:
 	cd backend && go vet ./...

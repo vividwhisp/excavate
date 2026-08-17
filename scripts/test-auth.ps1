@@ -51,6 +51,7 @@ if ($listener) {
     if ($LASTEXITCODE -ne 0) { Pop-Location; Fail "backend build failed" }
     Pop-Location
 
+    $env:RESEARCH_MODE = "mock"   # auth tests never touch providers; keep it deterministic
     $proc = Start-Process -FilePath (Join-Path $BinDir "server.exe") -WorkingDirectory $Backend -PassThru -WindowStyle Hidden
     $startedServer = $true
     $up = $false

@@ -42,9 +42,9 @@ func NewServer(cfg config.Config, logger *slog.Logger, st *store.Store, c *cache
 	messages := store.NewMessageRepo(st.Pool)
 
 	pipeline := research.NewPipeline(
-		search.NewMock(),
-		extract.NewMock(),
-		llm.NewMock(),
+		providerSearch(cfg),
+		providerExtract(cfg),
+		providerLLM(cfg),
 		messages,
 		threads,
 		c.Client(),
@@ -75,6 +75,43 @@ func (s *Server) StartWorkers(ctx context.Context) {
 }
 
 func (s *Server) Handler() http.Handler { return s.handler }
+
+// providerSearch returns the real Tavily provider when configured, else the
+// deterministic mock used by the automated test suites.
+func providerSearch(cfg config.Config) search.Provider {
+	if researchProvidersEnabled(cfg) {
+		return search.NewTavily(cfg.Tavily.APIKey)
+	}
+	return search.NewMock()
+}
+
+func providerExtract(cfg config.Config) extract.Extractor {
+	if researchProvidersEnabled(cfg) {
+		return extract.NewHTTP()
+	}
+	return extract.NewMock()
+}
+
+func providerLLM(cfg config.Config) llm.Provider {
+	if researchProvidersEnabled(cfg) {
+		return llm.NewGemini(cfg.Gemini.APIKey, cfg.Gemini.Model)
+	}
+	return llm.NewMock()
+}
+
+// researchProvidersEnabled decides between the real (Tavily + Gemini + HTTP)
+// providers and the mocks. RESEARCH_MODE=mock forces mocks for deterministic
+// automated tests; RESEARCH_MODE=real forces real providers; the default
+// "auto" uses real providers when both API keys are present.
+func researchProvidersEnabled(cfg config.Config) bool {
+	switch cfg.ResearchMode {
+	case "mock":
+		return false
+	case "real":
+		return true
+	}
+	return cfg.Tavily.APIKey != "" && cfg.Gemini.APIKey != ""
+}
 
 func (s *Server) buildRouter() http.Handler {
 	r := chi.NewRouter()

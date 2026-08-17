@@ -1,21 +1,38 @@
 package config
 
 import (
+	"bufio"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Config struct {
-	Env      string
-	Port     string
-	Debug    bool
-	BaseURL  string
-	Database string
-	Redis    RedisConfig
-	Session  SessionConfig
-	CORS     []string
-	App      AppConfig
+	Env          string
+	Port         string
+	Debug        bool
+	BaseURL      string
+	Database     string
+	Redis        RedisConfig
+	Session      SessionConfig
+	CORS         []string
+	App          AppConfig
+	Gemini       GeminiConfig
+	Tavily       TavilyConfig
+	ResearchMode string
+}
+
+// GeminiConfig holds credentials for the Google Gemini API (free tier).
+type GeminiConfig struct {
+	APIKey string
+	Model  string
+}
+
+// TavilyConfig holds the API key for the Tavily Search API (free tier:
+// 1,000 credits/month, no credit card required).
+type TavilyConfig struct {
+	APIKey string
 }
 
 type RedisConfig struct {
@@ -40,6 +57,7 @@ type AppConfig struct {
 }
 
 func Load() Config {
+	loadDotEnv()
 	return Config{
 		Env:      getEnv("APP_ENV", "development"),
 		Port:     getEnv("PORT", "8080"),
@@ -64,6 +82,43 @@ func Load() Config {
 			QueryCacheTTL:    time.Duration(getEnvInt("QUERY_CACHE_TTL_MINUTES", 60)) * time.Minute,
 			RateLimitPerHour: getEnvInt("RATE_LIMIT_PER_HOUR", 60),
 		},
+		Gemini: GeminiConfig{
+			APIKey: getEnv("GEMINI_API_KEY", ""),
+			Model:  getEnv("GEMINI_MODEL", "gemini-3.5-flash"),
+		},
+		Tavily: TavilyConfig{
+			APIKey: getEnv("TAVILY_API_KEY", ""),
+		},
+		ResearchMode: getEnv("RESEARCH_MODE", "auto"),
+	}
+}
+
+// loadDotEnv reads KEY=VALUE pairs from a .env file in the working directory.
+// Existing environment variables always win, so tests can override by setting
+// variables before the process starts. It is deliberately dependency-free.
+func loadDotEnv() {
+	f, err := os.Open(".env")
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		eq := strings.Index(line, "=")
+		if eq <= 0 {
+			continue
+		}
+		key := strings.TrimSpace(line[:eq])
+		val := strings.TrimSpace(line[eq+1:])
+		val = strings.Trim(val, `"'`)
+		if _, ok := os.LookupEnv(key); !ok {
+			_ = os.Setenv(key, val)
+		}
 	}
 }
 
