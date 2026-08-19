@@ -28,7 +28,7 @@ export default function SearchInput({
         disabled={disabled}
         autoFocus
       />
-      <button type="submit" disabled={disabled || !value.trim()}>
+      <button className="btn-ask" type="submit" disabled={disabled || !value.trim()}>
         Ask
       </button>
     </form>

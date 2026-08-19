@@ -3,16 +3,11 @@ import MarkdownViewer from './MarkdownViewer'
 import Sources from './Sources'
 
 const stageLabels: Record<StreamStage, string> = {
-  pending: 'Queued…',
-  searching: 'Searching the web…',
-  extracting: 'Reading sources…',
-  reasoning: 'Reasoning…',
+  pending: 'Queued',
+  searching: 'Searching the web',
+  extracting: 'Reading sources',
+  reasoning: 'Reasoning',
   done: '',
-}
-
-function StreamingIndicator({ stage }: { stage: StreamStage }) {
-  if (stage === 'done') return null
-  return <div className="streaming-indicator">{stageLabels[stage] ?? 'Working…'}</div>
 }
 
 interface StreamState {
@@ -36,10 +31,16 @@ export default function MessageBubble({
   const sources = stream?.sources ?? message.sources ?? []
   const content = stream?.answer || message.content || ''
   const isStreaming = stream !== undefined
+  const streaming = isStreaming && stream!.stage !== 'done'
 
   return (
     <div className="bubble assistant">
-      {isStreaming && <StreamingIndicator stage={stream!.stage} />}
+      {streaming && (
+        <span className="streaming-pill">
+          <span className="dot" />
+          {stageLabels[stream!.stage] ?? 'Working'}
+        </span>
+      )}
       <Sources sources={sources} />
       {stream?.error ? (
         <div className="error-text">Research failed: {stream.error}</div>
@@ -47,6 +48,9 @@ export default function MessageBubble({
         <MarkdownViewer content={content} sources={sources} />
       ) : (
         !isStreaming && <div className="muted">Empty response.</div>
+      )}
+      {streaming && content && (
+        <span className="caret" aria-hidden="true" />
       )}
       {message.status === 'error' && !stream && message.error && (
         <div className="error-text">{message.error}</div>

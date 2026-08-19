@@ -4,6 +4,13 @@ import type { Message } from '../api/types'
 import MessageBubble from './MessageBubble'
 import SearchInput from './SearchInput'
 
+const suggestions = [
+  'Why is the sky blue?',
+  'Explain quantum computing simply',
+  'Latest AI trends in 2026',
+  'How does a search engine rank pages?',
+]
+
 interface ChatProps {
   threadId: string | null
   messages: Message[]
@@ -46,8 +53,15 @@ export default function Chat({ threadId, messages, onSend, onThreadRefresh }: Ch
       <div className="messages">
         {messages.length === 0 && (
           <div className="empty-state">
-            <h2>Excavate</h2>
-            <p className="muted">Ask a question and get a cited, researched answer.</p>
+            <h1 className="hero-title">Excavate</h1>
+            <p>Ask anything. Get a researched answer with cited sources.</p>
+            <div className="suggestion-chips">
+              {suggestions.map((s) => (
+                <button key={s} className="chip" onClick={() => send(s)} disabled={isBusy}>
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {messages.map((m) => {

@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import rehypeHighlight from 'rehype-highlight'
 import type { Source } from '../api/types'
 
 const citeRe = /\[(\d+)\]/g
@@ -22,6 +23,7 @@ export default function MarkdownViewer({ content, sources }: { content: string; 
     <div className="markdown-body">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
         components={{
           a: ({ href, children }) => {
             const text = Array.isArray(children) ? children.join('') : String(children ?? '')
