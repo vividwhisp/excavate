@@ -7,8 +7,8 @@ markdown response to your browser.
 Built with a **Go** backend and a **React** frontend, designed for a **$0
 budget** — it runs entirely on free tiers and self-hosted Docker.
 
-> **Status:** backend milestones 1–2 complete (scaffold + auth). M3 (research
-> pipeline with mock providers + SSE streaming) is in progress.
+> **Status:** milestones 1–5 complete — auth, research pipeline, real providers
+> (Tavily + Gemini), and the React UI are all live. M6 (hardening) remains.
 
 ---
 
@@ -16,12 +16,14 @@ budget** — it runs entirely on free tiers and self-hosted Docker.
 
 - **Research pipeline** — search → extract → ground → stream
 - **Citation-backed answers** — every source is captured and rendered as a
-  numbered badge, Perplexity-style
+  clickable numbered badge, Perplexity-style
 - **Live streaming (SSE)** — progress stages and token-by-token deltas stream
   to the browser in real time
 - **Session auth** — email/password registration & login with Redis-backed
   sessions (bcrypt password hashing, httpOnly cookies)
 - **Threads & history** — conversations persisted in Postgres
+- **Modern UI** — cream/sage design system, light & dark themes, streaming
+  stage indicator, syntax-highlighted code blocks, mobile-responsive drawer
 
 ## Architecture
 
@@ -40,7 +42,7 @@ React (Vite+TS) ──SSE stream──▶ Go API (chi) ──▶ Research pipeli
 ```
 query
   → enqueue job (Redis)
-  → search          (Google CSE / mock)         → progress: SEARCHING
+  → search          (Tavily / mock)             → progress: SEARCHING
   → extract         (fetch + HTML→text, rank)  → progress: EXTRACTING  → sources event
   → ground          (query + trimmed pages)    → progress: REASONING
   → stream answer   (Gemini / mock)            → delta events → done
@@ -56,11 +58,11 @@ rest of the code.
 | Layer       | Choice                                   |
 |-------------|------------------------------------------|
 | Backend     | Go, chi router, pgx (Postgres), go-redis |
-| Frontend    | React, Vite, TypeScript                  |
+| Frontend    | React, Vite, TypeScript, react-markdown  |
 | Databases   | PostgreSQL 16, Redis 7                   |
 | Auth        | bcrypt + Redis-backed sessions           |
 | Streaming   | Server-Sent Events via Redis pub/sub     |
-| Search      | Google Programmable Search Engine        |
+| Search      | Tavily API (1,000 free credits/month)    |
 | LLM         | Google Gemini Flash (swappable)          |
 | Deploy      | Docker Compose (self-hosted)             |
 
@@ -108,15 +110,17 @@ docker compose up -d postgres redis
 cp .env.example .env
 ```
 
-Fill in the optional provider keys (only needed once real search/LLM are wired):
+Fill in the provider keys (optional — without them the app runs with mocks):
 
-| Variable            | Purpose                                        | Free tier       |
-|---------------------|------------------------------------------------|-----------------|
-| `GOOGLE_CSE_ID`     | Programmable Search Engine ID                   | 100 queries/day |
-| `GOOGLE_CSE_API_KEY`| Google API key for the CSE                      |                  |
-| `GEMINI_API_KEY`    | Google Studio API key for the LLM             | generous        |
+| Variable          | Purpose                                       | Free tier             |
+|-------------------|-----------------------------------------------|-----------------------|
+| `TAVILY_API_KEY`  | Tavily search API key                          | 1,000 credits/month   |
+| `GEMINI_API_KEY`  | Google AI Studio API key for the LLM           | generous              |
+| `GEMINI_MODEL`    | Model id (default `gemini-3.5-flash`)          |                       |
+| `RESEARCH_MODE`   | `mock` / `real` / `auto` (default: auto — real when both keys are set) | |
 
-Without keys the app runs, but search/LLM fall back to mocks.
+Get a free Tavily key at https://tavily.com and a Gemini key at
+https://aistudio.google.com/apikey.
 
 ### 3. Run the backend
 
@@ -172,8 +176,12 @@ make test
 
 # End-to-end auth flow (auto-starts Postgres/Redis + backend, runs 8 assertions)
 make test-auth
-# or
-powershell -ExecutionPolicy Bypass -File scripts/test-auth.ps1
+
+# End-to-end research pipeline with mock providers (6 assertions, deterministic)
+make test-research
+
+# End-to-end research with REAL providers — Tavily + Gemini (uses 1 search credit)
+make test-real
 ```
 
 ## Data model
@@ -199,18 +207,20 @@ powershell -ExecutionPolicy Bypass -File scripts/test-auth.ps1
 
 - [x] **M1** Scaffold: server, Docker, config, Postgres schema
 - [x] **M2** Auth: register/login/logout, Redis sessions
-- [ ] **M3** Research pipeline (mock providers) + SSE streaming
-- [ ] **M4** Real Google CSE + HTML extraction + Gemini
-- [ ] **M5** React UI (auth, chat, streaming markdown + citations)
-- [ ] **M6** Hardening: rate limits, caching, retries, logs, tests, README
+- [x] **M3** Research pipeline (mock providers) + SSE streaming
+- [x] **M4** Real providers: Tavily search + HTML extraction + Gemini
+- [x] **M5** React UI (auth, chat, streaming markdown + citations, themes)
+- [ ] **M6** Hardening: rate limits, caching, retries, logs, tests
 
 ## Production & free-tier constraints
 
 - **$0 budget** — all services run in Docker Compose; provider APIs are on
   free tiers only.
-- **Google CSE: 100 searches/day** — identical queries are cached in Redis to
-  stretch it.
+- **Tavily: 1,000 search credits/month** — identical queries are cached in
+  Redis to stretch them (each question ≈ 1 credit).
 - **Gemini free tier is rate-limited** — retry/backoff is built in.
+- **Why not Google CSE?** Programmable Search Engine stopped accepting new
+  customers; Tavily was the best $0 alternative.
 
 ## License
 
