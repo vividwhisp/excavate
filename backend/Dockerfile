@@ -1,15 +1,17 @@
-# syntax=docker/dockerfile:1
+FROM python:3.12-slim AS build
+WORKDIR /app
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir fastapi uvicorn asyncpg httpx bcrypt pydantic-settings beautifulsoup4 lxml
+COPY app ./app
+COPY app/store/migrations ./app/store/migrations
 
-FROM golang:1.26-alpine AS build
-WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/server ./cmd/server
-
-FROM alpine:3.20
-RUN adduser -D -H appuser
-COPY --from=build /out/server /usr/local/bin/server
+FROM python:3.12-slim
+RUN adduser --disabled-password --gecos "" appuser
+WORKDIR /app
+COPY --from=build /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=build /usr/local/bin /usr/local/bin
+COPY --from=build /app /app
 USER appuser
 EXPOSE 8080
-ENTRYPOINT ["server"]
+ENV PYTHONUNBUFFERED=1
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

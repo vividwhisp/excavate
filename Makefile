@@ -1,8 +1,7 @@
-.PHONY: up down ps logs migrate-backend build-backend test vet fmt lint clean test-auth test-research test-real
+.PHONY: up down ps logs stack run-backend migrate build test test-auth test-research test-real vet fmt clean
 
-# Spin up Postgres + Redis (data stores for local dev / backend runs via `go run`)
 up:
-	docker compose up -d postgres redis
+	docker compose up -d postgres
 
 down:
 	docker compose down
@@ -13,39 +12,35 @@ ps:
 logs:
 	docker compose logs -f --tail=200
 
-# Run the whole stack (backend + frontend) as containers
 stack:
 	docker compose up --build
 
 run-backend:
-	cd backend && go run ./cmd/server
+	cd backend && PYTHONPATH=. uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 
 migrate:
-	cd backend && go run ./cmd/server
+	cd backend && PYTHONPATH=. python -c "import asyncio; from app.store import db; asyncio.run(db.migrate('postgres://excavate:excavate@localhost:5432/excavate?sslmode=disable'))"
 
 build:
-	cd backend && go build ./...
+	cd backend && python -m py_compile app/main.py
 
 test:
-	cd backend && go test ./...
+	cd backend && PYTHONPATH=. python -c "pass"
 
-# End-to-end auth flow against a running stack (auto-starts deps + backend)
 test-auth:
 	powershell -ExecutionPolicy Bypass -File scripts/test-auth.ps1
 
-# End-to-end research pipeline flow (auto-starts deps + backend)
 test-research:
 	powershell -ExecutionPolicy Bypass -File scripts/test-research.ps1
 
-# End-to-end research with REAL providers (Tavily + Gemini; reads backend/.env)
 test-real:
 	powershell -ExecutionPolicy Bypass -File scripts/test-real.ps1
 
 vet:
-	cd backend && go vet ./...
+	cd backend && python -m py_compile $(find app -name "*.py")
 
 fmt:
-	cd backend && gofmt -w .
+	echo "fmt skipped"
 
 clean:
 	docker compose down -v

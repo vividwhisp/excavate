@@ -2,6 +2,11 @@
 .env
 *.local
 
+# Python backend
+backend/.venv/
+__pycache__/
+*.pyc
+
 # Go
 backend/bin/
 backend/server

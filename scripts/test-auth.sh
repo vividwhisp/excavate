@@ -18,7 +18,7 @@ command -v docker >/dev/null || fail "docker not found"
 
 # ---- 1. Databases -----------------------------------------------------------
 echo "== Starting Postgres + Redis =="
-docker compose -f "$ROOT/docker-compose.yml" up -d postgres redis >/dev/null 2>&1 || fail "docker compose up"
+docker compose -f "$ROOT/docker-compose.yml" up -d postgres >/dev/null 2>&1 || fail "docker compose up"
 ready=0
 for i in $(seq 1 30); do
   sleep 2

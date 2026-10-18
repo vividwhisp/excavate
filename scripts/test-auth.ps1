@@ -26,7 +26,7 @@ $Cookie = Join-Path $env:TEMP "excavate_cookies_$PID.txt"
 
 # ---- 1. Databases -----------------------------------------------------------
 Write-Host "== Starting Postgres + Redis ==" -ForegroundColor Cyan
-docker compose up -d postgres redis 2>&1 | Out-Null
+docker compose up -d postgres 2>&1 | Out-Null
 $ready = $false
 for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep 2
